@@ -1,0 +1,36 @@
+{
+  "name": "@stealth/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:https": "next dev --experimental-https",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "spike:ivs-channel": "tsx --env-file=.env.local scripts/create-ivs-channel.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ivs": "^3.1152.0",
+    "@stealth/shared": "*",
+    "amazon-ivs-web-broadcast": "^1.40.0",
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "amazon-ivs-player": "^1.57.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.0",
+    "typescript": "^5"
+  }
+}

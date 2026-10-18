@@ -1,0 +1,19 @@
+{
+  "name": "stealth",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @stealth/web",
+    "dev:creator": "npm run start -w @stealth/creator",
+    "build:web": "npm run build -w @stealth/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:up": "docker compose up -d postgres",
+    "db:generate": "npm run generate -w @stealth/db",
+    "db:migrate": "npm run migrate -w @stealth/db",
+    "spike:ivs-channel": "npm run spike:ivs-channel -w @stealth/web"
+  }
+}
