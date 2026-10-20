@@ -1,17 +1,18 @@
 import { z } from "zod";
-import { verifyPaymentSignature } from "@/lib/razorpay";
+import { getDb } from "@/server/db";
+import { errorResponse } from "@/server/errors";
+import { confirmPayment } from "@/server/orders";
+import { getProviders } from "@/server/providers";
 
-const Body = z.object({
-  razorpay_order_id: z.string(),
-  razorpay_payment_id: z.string(),
-  razorpay_signature: z.string(),
-});
+const Body = z.object({ paymentOrderId: z.string(), paymentId: z.string(), signature: z.string() });
 
 export async function POST(request: Request) {
   const body = Body.safeParse(await request.json().catch(() => null));
-  if (!body.success) return Response.json({ error: "missing Razorpay payment fields" }, { status: 400 });
+  if (!body.success) return Response.json({ error: "expected { paymentOrderId, paymentId, signature }" }, { status: 400 });
 
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body.data;
-  const verified = verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-  return Response.json({ verified, paymentId: razorpay_payment_id }, { status: verified ? 200 : 400 });
+  try {
+    return Response.json(await confirmPayment(await getDb(), getProviders().payments, body.data));
+  } catch (error) {
+    return errorResponse(error);
+  }
 }

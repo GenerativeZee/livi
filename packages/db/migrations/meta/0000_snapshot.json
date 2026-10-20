@@ -1,5 +1,5 @@
 {
-  "id": "a990642e-4258-448d-a819-2a04726ed2b8",
+  "id": "92600d8d-db66-4c2d-a710-5ddb4a06b9fa",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -497,6 +497,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "taxable_value_paise": {
+          "name": "taxable_value_paise",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "platform_commission_paise": {
           "name": "platform_commission_paise",
           "type": "integer",
@@ -527,20 +533,32 @@
           "primaryKey": false,
           "notNull": true
         },
-        "razorpay_order_id": {
-          "name": "razorpay_order_id",
+        "payment_provider": {
+          "name": "payment_provider",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "razorpay_payment_id": {
-          "name": "razorpay_payment_id",
+        "payment_order_id": {
+          "name": "payment_order_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "shiprocket_shipment_id": {
-          "name": "shiprocket_shipment_id",
+        "payment_id": {
+          "name": "payment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "shipping_provider": {
+          "name": "shipping_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "shipment_id": {
+          "name": "shipment_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -662,18 +680,18 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "orders_razorpay_order_id_unique": {
-          "name": "orders_razorpay_order_id_unique",
+        "orders_payment_order_id_unique": {
+          "name": "orders_payment_order_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "razorpay_order_id"
+            "payment_order_id"
           ]
         },
-        "orders_razorpay_payment_id_unique": {
-          "name": "orders_razorpay_payment_id_unique",
+        "orders_payment_id_unique": {
+          "name": "orders_payment_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "razorpay_payment_id"
+            "payment_id"
           ]
         }
       },
@@ -717,6 +735,13 @@
         },
         "stock": {
           "name": "stock",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sort_order": {
+          "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

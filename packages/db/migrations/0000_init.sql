@@ -61,18 +61,21 @@ CREATE TABLE "orders" (
 	"stream_id" uuid,
 	"status" "order_status" DEFAULT 'created' NOT NULL,
 	"total_paise" integer NOT NULL,
+	"taxable_value_paise" integer NOT NULL,
 	"platform_commission_paise" integer NOT NULL,
 	"creator_commission_paise" integer NOT NULL,
 	"tcs_paise" integer NOT NULL,
 	"seller_payout_paise" integer NOT NULL,
 	"shipping_address" jsonb NOT NULL,
-	"razorpay_order_id" text,
-	"razorpay_payment_id" text,
-	"shiprocket_shipment_id" text,
+	"payment_provider" text,
+	"payment_order_id" text,
+	"payment_id" text,
+	"shipping_provider" text,
+	"shipment_id" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"paid_at" timestamp with time zone,
-	CONSTRAINT "orders_razorpay_order_id_unique" UNIQUE("razorpay_order_id"),
-	CONSTRAINT "orders_razorpay_payment_id_unique" UNIQUE("razorpay_payment_id"),
+	CONSTRAINT "orders_payment_order_id_unique" UNIQUE("payment_order_id"),
+	CONSTRAINT "orders_payment_id_unique" UNIQUE("payment_id"),
 	CONSTRAINT "orders_split_sums_to_total" CHECK ("orders"."platform_commission_paise" + "orders"."creator_commission_paise" + "orders"."tcs_paise" + "orders"."seller_payout_paise" = "orders"."total_paise")
 );
 --> statement-breakpoint
@@ -82,6 +85,7 @@ CREATE TABLE "product_variants" (
 	"label" text NOT NULL,
 	"sku" text,
 	"stock" integer DEFAULT 0 NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "product_variants_stock_nonnegative" CHECK ("product_variants"."stock" >= 0)
 );
 --> statement-breakpoint

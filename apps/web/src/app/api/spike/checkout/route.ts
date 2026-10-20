@@ -1,20 +1,21 @@
 import { z } from "zod";
-import { computeSplit, DEFAULT_TERMS, findDemoProduct } from "@stealth/shared";
-import { createSplitOrder, razorpayKeyId } from "@/lib/razorpay";
+import { DEMO_SHOPPER } from "@stealth/shared";
+import { getDb } from "@/server/db";
+import { errorResponse } from "@/server/errors";
+import { createBuyNowOrder } from "@/server/orders";
+import { getProviders } from "@/server/providers";
 
-const Body = z.object({ productId: z.string(), variantId: z.string() });
+const Body = z.object({ streamId: z.uuid(), productId: z.uuid(), variantId: z.uuid() });
 
-/** Prices the item on the server (never trust a client amount), splits it and opens a Razorpay order. */
 export async function POST(request: Request) {
   const body = Body.safeParse(await request.json().catch(() => null));
-  if (!body.success) return Response.json({ error: "expected { productId, variantId }" }, { status: 400 });
+  if (!body.success) return Response.json({ error: "expected { streamId, productId, variantId }" }, { status: 400 });
 
-  const product = findDemoProduct(body.data.productId);
-  const variant = product?.variants.find((v) => v.id === body.data.variantId);
-  if (!product || !variant) return Response.json({ error: "unknown product or size" }, { status: 404 });
-  if (variant.stock < 1) return Response.json({ error: "out of stock" }, { status: 409 });
-
-  const split = computeSplit(product.price, { ...DEFAULT_TERMS, gstBps: product.gstBps });
-  const order = await createSplitOrder(split, `spike_${product.id}_${Date.now()}`);
-  return Response.json({ orderId: order.id, amount: order.amount, keyId: razorpayKeyId(), split, title: product.title });
+  try {
+    // Every order belongs to the demo shopper until phone login exists.
+    const order = await createBuyNowOrder(await getDb(), getProviders().payments, { buyerUserId: DEMO_SHOPPER.id, ...body.data });
+    return Response.json(order);
+  } catch (error) {
+    return errorResponse(error);
+  }
 }

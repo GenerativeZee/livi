@@ -106,6 +106,7 @@ export const productVariants = pgTable(
     label: text("label").notNull(),
     sku: text("sku"),
     stock: integer("stock").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [
     uniqueIndex("product_variants_product_label_idx").on(t.productId, t.label),
@@ -172,15 +173,20 @@ export const orders = pgTable(
     streamId: uuid("stream_id").references(() => liveStreams.id),
     status: orderStatusEnum("status").notNull().default("created"),
     totalPaise: integer("total_paise").notNull(),
+    /** Pre-GST value; TCS is charged on this. */
+    taxableValuePaise: integer("taxable_value_paise").notNull(),
     platformCommissionPaise: integer("platform_commission_paise").notNull(),
     creatorCommissionPaise: integer("creator_commission_paise").notNull(),
     tcsPaise: integer("tcs_paise").notNull(),
     sellerPayoutPaise: integer("seller_payout_paise").notNull(),
     /** Copied from addresses at checkout so later address edits don't change past orders. */
     shippingAddress: jsonb("shipping_address").notNull(),
-    razorpayOrderId: text("razorpay_order_id").unique(),
-    razorpayPaymentId: text("razorpay_payment_id").unique(),
-    shiprocketShipmentId: text("shiprocket_shipment_id"),
+    /** Which payment provider handled this order ("razorpay", or "fake" in development). */
+    paymentProvider: text("payment_provider"),
+    paymentOrderId: text("payment_order_id").unique(),
+    paymentId: text("payment_id").unique(),
+    shippingProvider: text("shipping_provider"),
+    shipmentId: text("shipment_id"),
     createdAt: createdAt(),
     paidAt: timestamp("paid_at", { withTimezone: true }),
   },

@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "spike:ivs-channel": "tsx --env-file=.env.local scripts/create-ivs-channel.ts"
+    "spike:ivs-channel": "tsx --env-file=.env.local scripts/create-ivs-channel.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-ivs": "^3.1152.0",
@@ -19,7 +20,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
-    "zod": "^4.1.0"
+    "zod": "^4.1.0",
+    "@stealth/db": "*"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -31,6 +33,7 @@
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.20.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.0"
   }
 }

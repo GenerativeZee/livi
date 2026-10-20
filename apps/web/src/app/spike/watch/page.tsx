@@ -1,7 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { DEMO_PRODUCTS } from "@stealth/shared";
-import { ivsEnv } from "@/lib/env";
+import { loadFeaturedStream } from "../load-featured";
 import { SpikeNotConfigured } from "../not-configured";
 import { WatchClient } from "./watch-client";
 
@@ -16,13 +15,17 @@ export default function WatchPage() {
 }
 
 async function Watch() {
-  // Read env per request, not at build time, so a new channel only needs a restart.
+  // Per request, not at build time: the stream, its pin and the provider config all change at runtime.
   await connection();
-  let playbackUrl: string;
-  try {
-    playbackUrl = ivsEnv().IVS_PLAYBACK_URL;
-  } catch (error) {
-    return <SpikeNotConfigured error={error} />;
-  }
-  return <WatchClient playbackUrl={playbackUrl} products={DEMO_PRODUCTS} />;
+  const featured = await loadFeaturedStream();
+  if (!featured.ok) return <SpikeNotConfigured error={featured.error} />;
+  return (
+    <WatchClient
+      streamId={featured.stream.id}
+      title={featured.stream.title}
+      playback={featured.playback}
+      products={featured.products}
+      initialPinId={featured.initialPinId}
+    />
+  );
 }

@@ -1,7 +1,7 @@
 # Stealth Live
 
 Live shopping for regional fashion: creators stream, pin products, shoppers buy without leaving the stream.
-Product context is in `prd.pdf`.
+The product requirements document (PRD) is shared privately with the team; ask a maintainer for access.
 
 ## Layout
 
@@ -20,22 +20,45 @@ Use **Node 24 LTS** (Expo 58 / React Native 0.88 don't support Node 25).
 
 ```sh
 npm install
-npm test            # shared package unit tests
+npm run dev:web     # http://localhost:3000, no keys or database needed
+npm test            # unit + integration tests (in-memory database)
 npm run typecheck   # all workspaces
 ```
 
-Database (needs Docker Desktop running):
+### Database
+
+With no `DATABASE_URL`, the web app starts an **in-memory Postgres** (PGlite), applies the migrations and seeds
+demo data (`packages/shared/src/fixtures.ts`). It resets on every restart.
+
+To use a real Postgres instead (needs Docker Desktop running):
 
 ```sh
 npm run db:up       # Postgres 17 on localhost:5432
 npm run db:migrate  # apply packages/db/migrations
-npm run db:generate # after editing packages/db/src/schema.ts
+npm run db:seed     # demo data
+# then set DATABASE_URL=postgres://stealth:stealth@localhost:5432/stealth in apps/web/.env.local
 ```
+
+After editing `packages/db/src/schema.ts`, run `npm run db:generate` to create a migration.
+
+### Providers
+
+Every third-party service sits behind a small interface in `apps/web/src/server/providers/`, with a fake for
+development. All default to fake, so the app runs end to end with no keys.
+
+| Service | Variable | Fake behaviour | Real |
+| --- | --- | --- | --- |
+| Live video | `VIDEO_PROVIDER` | No video; pins reach viewers over Server-Sent Events | `ivs` |
+| Payments | `PAYMENT_PROVIDER` | "Pay (test)" sheet; same verify → mark-paid flow | `razorpay` |
+| Login OTP | `OTP_PROVIDER` | Code printed in the server terminal | not built yet |
+| Shipping | `SHIPPING_PROVIDER` | Made-up shipment and tracking number | not built yet |
+
+With fakes, try it locally: open `/spike/live`, enter token `dev-creator`, **Start camera → Go live**, pin a
+product, and buy it from `/spike/watch` in another tab.
 
 ## Phase 0 spikes
 
-Three questions to answer in the first two weeks, before building features.
-The spikes run without the database, using the demo catalog in `packages/shared/src/fixtures.ts`.
+Three questions to answer with the real providers. They need the keys below.
 
 | # | Question | Pass criteria |
 | --- | --- | --- |
@@ -50,10 +73,11 @@ cp apps/web/.env.example apps/web/.env.local
 ```
 
 1. **AWS**: create an IAM user with `ivs:CreateChannel` and `ivs:PutMetadata`, put its keys in `.env.local`, then
-   `npm run spike:ivs-channel` and paste the printed `IVS_*` lines into `.env.local`.
-2. Set `SPIKE_CREATOR_TOKEN` to any string of 8+ characters.
-3. **Razorpay** (test mode): add key id/secret. For spike 3, enable Route and create two test linked accounts
-   (seller, creator) in the dashboard, and add their `acc_...` ids. Without them, checkout works but doesn't split.
+   `npm run spike:ivs-channel`, paste the printed `IVS_*` lines into `.env.local`, and set `VIDEO_PROVIDER=ivs`.
+2. Set `SPIKE_CREATOR_TOKEN` to any string of 8+ characters. Anyone who can reach the server could otherwise use `dev-creator`.
+3. **Razorpay** (test mode): add key id/secret and set `PAYMENT_PROVIDER=razorpay`. For spike 3, enable Route and
+   create two test linked accounts (seller, creator) in the dashboard, and add their `acc_...` ids; the dev database
+   attaches them to the demo seller and creator on startup. Without them, checkout works but doesn't split.
 
 ### Run
 
