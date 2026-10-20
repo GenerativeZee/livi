@@ -1,17 +1,24 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
-import { liveStreams, streamPins, type Db } from "@stealth/db";
+import { streamPins, type Db } from "@stealth/db";
+import type { SessionUser } from "@stealth/shared";
 import { isInLineup } from "./catalog";
 import { AppError } from "./errors";
 import type { VideoProvider } from "./providers/video/types";
+import { assertCanHost } from "./streams";
 
 /**
  * Pins a product for every viewer (or unpins with null). The pin is recorded first,
  * so viewers who join later still see it and analytics can attribute sales to it.
  */
-export async function setPin(db: Db, video: VideoProvider, streamId: string, productId: string | null): Promise<number> {
-  const [stream] = await db.select({ id: liveStreams.id }).from(liveStreams).where(eq(liveStreams.id, streamId));
-  if (!stream) throw new AppError(404, "Unknown stream");
+export async function setPin(
+  db: Db,
+  video: VideoProvider,
+  actor: SessionUser,
+  streamId: string,
+  productId: string | null,
+): Promise<number> {
+  await assertCanHost(db, actor, streamId);
   if (productId && !(await isInLineup(db, streamId, productId))) {
     throw new AppError(404, "That product isn't in this stream's lineup");
   }

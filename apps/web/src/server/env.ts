@@ -1,13 +1,16 @@
 import "server-only";
 import { z } from "zod";
 
-// Every provider defaults to "fake", so the app runs with no third-party keys.
+// Every provider defaults to a stand-in ("fake", or "local" for video), so the app runs with no third-party keys.
 // Switching one to its real implementation only requires that provider's own variables.
 
 const required = z.string().min(1);
 
 const providersSchema = z.object({
-  VIDEO_PROVIDER: z.enum(["fake", "ivs"]).default("fake"),
+  // Defaults to "local" (browser-to-browser video) in development and "fake" (no video) in production.
+  VIDEO_PROVIDER: z
+    .enum(["local", "fake", "ivs"])
+    .default(process.env.NODE_ENV === "production" ? "fake" : "local"),
   PAYMENT_PROVIDER: z.enum(["fake", "razorpay"]).default("fake"),
   OTP_PROVIDER: z.enum(["fake"]).default("fake"),
   SHIPPING_PROVIDER: z.enum(["fake"]).default("fake"),
@@ -46,15 +49,5 @@ export const ivsEnv = () => load(ivsSchema, "AWS IVS");
 export const razorpayEnv = () => load(razorpaySchema, "Razorpay");
 export const seedEnv = () => load(seedSchema, "Seed data");
 
-const DEV_CREATOR_TOKEN = "dev-creator";
-
-/**
- * Shared secret the creator enters on the broadcast page; guards the stream key and pin API.
- * Falls back to "dev-creator" outside production so local development needs no setup.
- */
-export function creatorToken(): string {
-  const token = process.env.SPIKE_CREATOR_TOKEN;
-  if (token && token.length >= 8) return token;
-  if (process.env.NODE_ENV !== "production") return DEV_CREATOR_TOKEN;
-  throw new Error("SPIKE_CREATOR_TOKEN (8+ characters) is required in production");
-}
+/** Showing login codes on screen is only allowed with the fake SMS sender, outside production. */
+export const showDevOtpCodes = () => process.env.NODE_ENV !== "production" && providersEnv().OTP_PROVIDER === "fake";

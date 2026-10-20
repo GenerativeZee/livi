@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { Playback, Product, StreamCue } from "@stealth/shared";
 import { PinnedProduct } from "./pinned-product";
-import { FakeVideo, IvsVideo, type VideoStatus } from "./video";
+import { FakeVideo, IvsVideo, LocalVideo, type VideoStatus } from "./video";
 
 interface Pin {
   product: Product;
@@ -17,9 +17,10 @@ interface Props {
   playback: Playback;
   products: Product[];
   initialPinId: string | null;
+  signedIn: boolean;
 }
 
-export function WatchClient({ streamId, title, playback, products, initialPinId }: Props) {
+export function WatchClient({ streamId, title, playback, products, initialPinId, signedIn }: Props) {
   const [status, setStatus] = useState<VideoStatus>("loading");
   const [pin, setPin] = useState<Pin | null>(() => {
     const product = products.find((p) => p.id === initialPinId);
@@ -40,13 +41,18 @@ export function WatchClient({ streamId, title, playback, products, initialPinId 
       <div className="relative flex-1">
         {playback.provider === "ivs" ? (
           <IvsVideo playbackUrl={playback.playbackUrl} onCue={onCue} onStatus={setStatus} />
+        ) : playback.provider === "local" ? (
+          <LocalVideo streamId={streamId} cuesUrl={playback.cuesUrl} onCue={onCue} onStatus={setStatus} />
         ) : (
           <FakeVideo cuesUrl={playback.cuesUrl} title={title} onCue={onCue} onStatus={setStatus} />
         )}
 
         <div className="absolute left-3 top-3 flex items-center gap-2 text-xs font-semibold">
           {status === "playing" ? (
-            <span className="rounded bg-red-600 px-2 py-1">LIVE{playback.provider === "fake" && " · simulated"}</span>
+            <span className="rounded bg-red-600 px-2 py-1">
+              LIVE{playback.provider === "fake" && " · simulated"}
+              {playback.provider === "local" && " · local"}
+            </span>
           ) : (
             <span className="rounded bg-white/20 px-2 py-1">
               {status === "unsupported" ? "Browser not supported" : status === "offline" ? "Waiting for creator…" : "Loading…"}
@@ -55,7 +61,7 @@ export function WatchClient({ streamId, title, playback, products, initialPinId 
           {pin?.delayMs != null && <span className="rounded bg-white/20 px-2 py-1">pin delay {(pin.delayMs / 1000).toFixed(1)}s</span>}
         </div>
 
-        {pin && <PinnedProduct key={pin.product.id} streamId={streamId} product={pin.product} />}
+        {pin && <PinnedProduct key={pin.product.id} streamId={streamId} product={pin.product} signedIn={signedIn} />}
       </div>
     </main>
   );

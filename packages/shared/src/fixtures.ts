@@ -19,6 +19,12 @@ export const DEMO_SHOPPER = {
   },
 };
 
+export const DEMO_ADMIN = {
+  id: demoId(6),
+  phone: "+919800000009",
+  name: "Platform admin (demo)",
+};
+
 export const DEMO_CREATOR = {
   id: demoId(11),
   userId: demoId(2),

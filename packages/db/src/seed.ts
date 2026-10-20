@@ -1,4 +1,4 @@
-import { DEMO_CREATOR, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_SHOPPER, DEMO_STREAM } from "@stealth/shared";
+import { DEMO_ADMIN, DEMO_CREATOR, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_SHOPPER, DEMO_STREAM } from "@stealth/shared";
 import type { Db } from "./client";
 import {
   addresses,
@@ -22,6 +22,7 @@ export async function seed(db: Db, options: SeedOptions = {}): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.insert(users).values([
       { id: DEMO_SHOPPER.id, phone: DEMO_SHOPPER.phone, name: DEMO_SHOPPER.name },
+      { id: DEMO_ADMIN.id, phone: DEMO_ADMIN.phone, name: DEMO_ADMIN.name, isAdmin: true },
       { id: DEMO_CREATOR.userId, phone: DEMO_CREATOR.phone, name: DEMO_CREATOR.displayName },
       ...DEMO_SELLERS.map((s) => ({ id: s.userId, phone: s.phone, name: s.businessName })),
     ]);

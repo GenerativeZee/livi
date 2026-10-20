@@ -1,8 +1,9 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
-import { decodeCue, type StreamCue } from "@stealth/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { decodeCue, RTC_HOST, type StreamCue } from "@stealth/shared";
+import { beaconSignal, ICE_SERVERS, openSignals, randomId, sendSignal, toIceInit } from "@/lib/rtc";
 
 const IVS_PLAYER_SRC = "https://player.live-video.net/1.57.0/amazon-ivs-player.min.js";
 
@@ -80,23 +81,125 @@ export function IvsVideo({ playbackUrl, onCue, onStatus }: VideoProps & { playba
   );
 }
 
-/** Fake provider: no video, just a backdrop. Pin cues arrive over Server-Sent Events. */
-export function FakeVideo({ cuesUrl, title, onCue, onStatus }: VideoProps & { cuesUrl: string; title: string }) {
+/** Pin cues over Server-Sent Events, for the providers without IVS. */
+function useCueFeed(cuesUrl: string, onCue: (cue: StreamCue) => void, onConnected?: (connected: boolean) => void) {
   useEffect(() => {
     const source = new EventSource(cuesUrl);
-    source.onopen = () => onStatus("playing");
-    source.onerror = () => onStatus("offline"); // EventSource reconnects by itself
+    source.onopen = () => onConnected?.(true);
+    source.onerror = () => onConnected?.(false); // EventSource reconnects by itself
     source.onmessage = (event) => {
       const cue = decodeCue(event.data);
       if (cue) onCue(cue);
     };
     return () => source.close();
-  }, [cuesUrl, onCue, onStatus]);
+  }, [cuesUrl, onCue, onConnected]);
+}
+
+/** Fake provider: no video, just a backdrop. Pin cues arrive over Server-Sent Events. */
+export function FakeVideo({ cuesUrl, title, onCue, onStatus }: VideoProps & { cuesUrl: string; title: string }) {
+  const onConnected = useCallback((connected: boolean) => onStatus(connected ? "playing" : "offline"), [onStatus]);
+  useCueFeed(cuesUrl, onCue, onConnected);
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-fuchsia-950 via-zinc-950 to-black p-8 text-center">
       <p className="text-lg font-semibold">{title}</p>
       <p className="mt-2 text-xs text-zinc-400">Simulated stream: no video in development. Pins from the creator page appear below.</p>
     </div>
+  );
+}
+
+/**
+ * Dev-only "local" provider: the creator's browser sends video straight to this one over WebRTC.
+ * We ask the host to connect, answer its offer, and play whatever tracks arrive.
+ */
+export function LocalVideo({ streamId, cuesUrl, onCue, onStatus }: VideoProps & { streamId: string; cuesUrl: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  useCueFeed(cuesUrl, onCue);
+
+  useEffect(() => {
+    const viewerId = randomId();
+    let pc: RTCPeerConnection | null = null;
+    let pending: RTCIceCandidateInit[] = [];
+    const setStatus = (status: VideoStatus) => {
+      setPlaying(status === "playing");
+      onStatus(status);
+    };
+    const join = () => sendSignal(streamId, viewerId, RTC_HOST, { kind: "join" });
+    const hangUp = () => {
+      pc?.close();
+      pc = null;
+      pending = [];
+      if (videoRef.current) videoRef.current.srcObject = null;
+      setStatus("offline");
+    };
+
+    async function answer(sdp: string) {
+      hangUp();
+      const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      pc = connection;
+      connection.ontrack = (event) => {
+        if (videoRef.current && videoRef.current.srcObject !== event.streams[0]) videoRef.current.srcObject = event.streams[0];
+      };
+      connection.onicecandidate = (event) => {
+        if (event.candidate) sendSignal(streamId, viewerId, RTC_HOST, { kind: "ice", candidate: toIceInit(event.candidate) });
+      };
+      connection.onconnectionstatechange = () => {
+        if (connection.connectionState === "connected") setStatus("playing");
+        if (connection.connectionState === "failed" || connection.connectionState === "disconnected") setStatus("offline");
+      };
+      await connection.setRemoteDescription({ type: "offer", sdp });
+      const reply = await connection.createAnswer();
+      await connection.setLocalDescription(reply);
+      sendSignal(streamId, viewerId, RTC_HOST, { kind: "answer", sdp: reply.sdp ?? "" });
+      for (const candidate of pending.splice(0)) await connection.addIceCandidate(candidate);
+    }
+
+    const signals = openSignals(streamId, viewerId, ({ signal }) => {
+      switch (signal.kind) {
+        case "host-ready":
+          if (pc?.connectionState !== "connected") join();
+          return;
+        case "offer":
+          void answer(signal.sdp);
+          return;
+        case "ice":
+          if (pc?.remoteDescription) void pc.addIceCandidate(signal.candidate);
+          else pending.push(signal.candidate);
+          return;
+        case "leave":
+          hangUp();
+          return;
+      }
+    });
+    // Ask as soon as we can hear the reply; if the creator isn't live yet, their "host-ready" will prompt us.
+    signals.onopen = join;
+    setStatus("offline");
+
+    const leave = () => beaconSignal(streamId, viewerId, RTC_HOST, { kind: "leave" });
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+      signals.close();
+      pc?.close();
+    };
+  }, [streamId, onStatus]);
+
+  const unmute = () => {
+    if (videoRef.current) videoRef.current.muted = false;
+    setMuted(false);
+  };
+
+  return (
+    <>
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+      {playing && muted && (
+        <button onClick={unmute} className="absolute right-3 top-3 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+          Tap for sound
+        </button>
+      )}
+    </>
   );
 }

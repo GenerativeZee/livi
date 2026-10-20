@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Script from "next/script";
 import { useState } from "react";
 import {
@@ -28,7 +29,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data;
 }
 
-export function PinnedProduct({ streamId, product }: { streamId: string; product: Product }) {
+interface Props {
+  streamId: string;
+  product: Product;
+  signedIn: boolean;
+}
+
+export function PinnedProduct({ streamId, product, signedIn }: Props) {
   const [variantId, setVariantId] = useState(product.variants.find((v) => v.stock > 0)?.id ?? null);
   const [checkout, setCheckout] = useState<CheckoutState>({ step: "idle" });
 
@@ -120,6 +127,13 @@ export function PinnedProduct({ streamId, product }: { streamId: string; product
           }}
           onCancel={() => setCheckout({ step: "idle" })}
         />
+      ) : !signedIn ? (
+        <Link
+          href="/login?next=/spike/watch"
+          className="mt-3 block w-full rounded-xl bg-pink-600 py-2.5 text-center text-sm font-bold text-white"
+        >
+          Sign in to buy
+        </Link>
       ) : (
         <button
           onClick={buy}

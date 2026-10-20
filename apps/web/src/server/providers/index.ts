@@ -9,6 +9,7 @@ import { createFakeShipping } from "./shipping/fake";
 import type { ShippingProvider } from "./shipping/types";
 import { createFakeVideo } from "./video/fake";
 import { createIvsVideo } from "./video/ivs";
+import { createLocalVideo } from "./video/local";
 import type { VideoProvider } from "./video/types";
 
 export interface Providers {
@@ -20,17 +21,26 @@ export interface Providers {
 
 let providers: Providers | undefined;
 
-/** Picks each provider from VIDEO_PROVIDER, PAYMENT_PROVIDER, etc. (all "fake" by default). */
+/** Picks each provider from VIDEO_PROVIDER, PAYMENT_PROVIDER, etc. (stand-ins by default). */
 export function getProviders(): Providers {
   if (providers) return providers;
   const env = providersEnv();
   providers = {
-    video: env.VIDEO_PROVIDER === "ivs" ? createIvsVideo() : createFakeVideo(),
+    video: createVideo(env.VIDEO_PROVIDER),
     payments: env.PAYMENT_PROVIDER === "razorpay" ? createRazorpayPayments() : createFakePayments(),
     otp: createFakeOtp(),
     shipping: createFakeShipping(),
   };
   return providers;
+}
+
+function createVideo(name: "ivs" | "fake" | "local"): VideoProvider {
+  if (name === "ivs") return createIvsVideo();
+  if (name === "fake") return createFakeVideo();
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("VIDEO_PROVIDER=local is for development only. Use ivs in production.");
+  }
+  return createLocalVideo();
 }
 
 /** Lets tests swap in their own providers. */

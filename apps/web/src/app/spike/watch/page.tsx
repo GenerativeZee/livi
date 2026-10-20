@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { currentUser } from "@/server/session";
 import { loadFeaturedStream } from "../load-featured";
 import { SpikeNotConfigured } from "../not-configured";
 import { WatchClient } from "./watch-client";
@@ -17,7 +18,7 @@ export default function WatchPage() {
 async function Watch() {
   // Per request, not at build time: the stream, its pin and the provider config all change at runtime.
   await connection();
-  const featured = await loadFeaturedStream();
+  const [featured, user] = await Promise.all([loadFeaturedStream(), currentUser()]);
   if (!featured.ok) return <SpikeNotConfigured error={featured.error} />;
   return (
     <WatchClient
@@ -26,6 +27,7 @@ async function Watch() {
       playback={featured.playback}
       products={featured.products}
       initialPinId={featured.initialPinId}
+      signedIn={user !== null}
     />
   );
 }

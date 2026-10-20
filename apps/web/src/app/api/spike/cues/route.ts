@@ -1,7 +1,7 @@
 import { encodeCue } from "@stealth/shared";
-import { subscribeToCues } from "@/server/providers/video/fake";
+import { subscribeToCues } from "@/server/providers/video/cue-bus";
 
-/** Server-Sent Events feed of pin cues, used by the fake video provider in place of IVS timed metadata. */
+/** Server-Sent Events feed of pin cues, used by the fake and local video providers in place of IVS timed metadata. */
 export async function GET(request: Request) {
   const streamId = new URL(request.url).searchParams.get("stream");
   if (!streamId) return Response.json({ error: "missing ?stream=" }, { status: 400 });

@@ -38,8 +38,40 @@ export const users = pgTable("users", {
   phone: text("phone").notNull().unique(),
   name: text("name"),
   locale: localeEnum("locale").notNull().default("hi"),
+  /** Platform staff: can approve sellers and act on any stream. Set by hand, never through the app. */
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: createdAt(),
 });
+
+/**
+ * One-time login codes. Only a hash of the code is stored.
+ * Rows also serve as the rate-limit log for sending codes to a phone.
+ */
+export const otpChallenges = pgTable(
+  "otp_challenges",
+  {
+    id: id(),
+    phone: text("phone").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("otp_challenges_phone_created_idx").on(t.phone, t.createdAt)],
+);
+
+/** Signed-in browsers. The cookie holds a random token; only its SHA-256 is stored here. */
+export const sessions = pgTable(
+  "sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
 
 export const addresses = pgTable(
   "addresses",

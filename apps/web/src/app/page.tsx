@@ -1,23 +1,30 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { AccountBar } from "./account-bar";
 
 const SPIKES = [
   {
     href: "/spike/live",
     title: "1 · Go live",
-    body: "Creator broadcasts from a phone browser into AWS IVS, then pins products during the stream.",
+    body: "Sign in as the creator, broadcast, and pin products during the stream.",
   },
   {
     href: "/spike/watch",
     title: "2 · Watch & buy",
-    body: "Shopper player. Pinned products appear in sync with the video, with Razorpay checkout and a split preview.",
+    body: "Shopper view. Pinned products appear in sync with the video; sign in to buy.",
   },
 ];
 
 export default function Home() {
   return (
     <main className="mx-auto w-full max-w-md p-6">
-      <h1 className="text-2xl font-bold">Phase 0 spikes</h1>
-      <p className="mt-2 text-sm text-zinc-500">Open “Go live” on a phone and “Watch &amp; buy” on another device.</p>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Phase 0 spikes</h1>
+        <Suspense>
+          <AccountBar />
+        </Suspense>
+      </div>
+      <p className="mt-2 text-sm text-zinc-500">Open “Go live” and “Watch &amp; buy” in two windows, signed in as different people.</p>
       <ul className="mt-6 flex flex-col gap-3">
         {SPIKES.map((s) => (
           <li key={s.href}>

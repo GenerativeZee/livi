@@ -7,7 +7,7 @@ import { getProviders } from "@/server/providers";
 export type FeaturedStream =
   | {
       ok: true;
-      stream: { id: string; title: string };
+      stream: { id: string; title: string; creatorId: string };
       products: Product[];
       initialPinId: string | null;
       playback: Playback;

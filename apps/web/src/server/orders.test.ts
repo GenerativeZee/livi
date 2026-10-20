@@ -2,13 +2,22 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb, orders, productVariants, seed, type Db } from "@stealth/db";
-import { DEMO_PRODUCTS, DEMO_SHOPPER, DEMO_STREAM, type PaymentConfirmation, type StreamCue } from "@stealth/shared";
+import {
+  DEMO_CREATOR,
+  DEMO_PRODUCTS,
+  DEMO_SHOPPER,
+  DEMO_STREAM,
+  type PaymentConfirmation,
+  type SessionUser,
+  type StreamCue,
+} from "@stealth/shared";
 import { getCurrentPin } from "./catalog";
 import { AppError } from "./errors";
 import { confirmPayment, createBuyNowOrder } from "./orders";
 import { setPin } from "./pins";
 import { createFakePayments } from "./providers/payments/fake";
-import { createFakeVideo, subscribeToCues } from "./providers/video/fake";
+import { subscribeToCues } from "./providers/video/cue-bus";
+import { createFakeVideo } from "./providers/video/fake";
 
 const migrationsFolder = fileURLToPath(new URL("../../../../packages/db/migrations", import.meta.url));
 const payments = createFakePayments();
@@ -85,17 +94,27 @@ describe("buy now", () => {
   });
 });
 
+const host: SessionUser = {
+  id: DEMO_CREATOR.userId,
+  phone: DEMO_CREATOR.phone,
+  name: DEMO_CREATOR.displayName,
+  isAdmin: false,
+  creatorId: DEMO_CREATOR.id,
+  sellerIds: [],
+};
+const shopper: SessionUser = { ...host, id: DEMO_SHOPPER.id, phone: DEMO_SHOPPER.phone, creatorId: null };
+
 describe("pins", () => {
   it("records the pin for late joiners and sends it to live viewers", async () => {
     const video = createFakeVideo();
     const received: StreamCue[] = [];
     const unsubscribe = subscribeToCues(DEMO_STREAM.id, (cue) => received.push(cue));
 
-    await setPin(db, video, DEMO_STREAM.id, saree.id);
+    await setPin(db, video, host, DEMO_STREAM.id, saree.id);
     expect(await getCurrentPin(db, DEMO_STREAM.id)).toBe(saree.id);
 
-    await setPin(db, video, DEMO_STREAM.id, kurta.id);
-    await setPin(db, video, DEMO_STREAM.id, null);
+    await setPin(db, video, host, DEMO_STREAM.id, kurta.id);
+    await setPin(db, video, host, DEMO_STREAM.id, null);
     expect(await getCurrentPin(db, DEMO_STREAM.id)).toBeNull();
 
     unsubscribe();
@@ -103,6 +122,12 @@ describe("pins", () => {
   });
 
   it("refuses products outside the stream's lineup", async () => {
-    await expect(setPin(db, createFakeVideo(), DEMO_STREAM.id, crypto.randomUUID())).rejects.toEqual(rejectsWith(404));
+    await expect(setPin(db, createFakeVideo(), host, DEMO_STREAM.id, crypto.randomUUID())).rejects.toEqual(rejectsWith(404));
+  });
+
+  it("only lets the stream's creator or an admin pin", async () => {
+    const pin = (actor: SessionUser) => setPin(db, createFakeVideo(), actor, DEMO_STREAM.id, saree.id);
+    await expect(pin(shopper)).rejects.toEqual(rejectsWith(403));
+    await expect(pin({ ...shopper, isAdmin: true })).resolves.toBeTypeOf("number");
   });
 });

@@ -44,17 +44,33 @@ After editing `packages/db/src/schema.ts`, run `npm run db:generate` to create a
 ### Providers
 
 Every third-party service sits behind a small interface in `apps/web/src/server/providers/`, with a fake for
-development. All default to fake, so the app runs end to end with no keys.
+development. All default to stand-ins, so the app runs end to end with no keys.
 
 | Service | Variable | Fake behaviour | Real |
 | --- | --- | --- | --- |
-| Live video | `VIDEO_PROVIDER` | No video; pins reach viewers over Server-Sent Events | `ivs` |
+| Live video | `VIDEO_PROVIDER` | `local` (default in development): camera goes browser-to-browser over WebRTC, for a few viewers on one machine or Wi-Fi. `fake`: no video. Pins reach viewers over Server-Sent Events in both | `ivs` |
 | Payments | `PAYMENT_PROVIDER` | "Pay (test)" sheet; same verify → mark-paid flow | `razorpay` |
-| Login OTP | `OTP_PROVIDER` | Code printed in the server terminal | not built yet |
+| Login OTP | `OTP_PROVIDER` | Code printed in the server terminal, and shown on the login screen in development | not built yet |
 | Shipping | `SHIPPING_PROVIDER` | Made-up shipment and tracking number | not built yet |
 
-With fakes, try it locally: open `/spike/live`, enter token `dev-creator`, **Start camera → Go live**, pin a
-product, and buy it from `/spike/watch` in another tab.
+### Accounts and roles
+
+Sign-in is by phone number and a 6-digit code (`/login`). There's no separate sign-up: a new number gets an
+account on first sign-in. Roles come from data: a user is a **creator** if they have a creator profile, a
+**seller** if they own a seller account, and an **admin** if `users.is_admin` is set (by hand in the database).
+
+| Demo account | Phone | Can |
+| --- | --- | --- |
+| Shopper | 98000 00001 | Buy (has a delivery address) |
+| Creator | 98000 00002 | Go live and pin on the demo stream |
+| Seller | 98000 00003 | Nothing yet (seller dashboard is coming) |
+| Admin | 98000 00009 | Act on any stream |
+
+In development the login page has quick-fill buttons for these. To try the whole flow, use two browser
+windows (one normal, one private) so each has its own sign-in: sign in as the creator on `/spike/live`,
+**Start camera → Go live**, pin a product, and buy it as the shopper on `/spike/watch`.
+
+New accounts can't buy yet, because adding a delivery address comes with the orders work.
 
 ## Phase 0 spikes
 
@@ -74,8 +90,7 @@ cp apps/web/.env.example apps/web/.env.local
 
 1. **AWS**: create an IAM user with `ivs:CreateChannel` and `ivs:PutMetadata`, put its keys in `.env.local`, then
    `npm run spike:ivs-channel`, paste the printed `IVS_*` lines into `.env.local`, and set `VIDEO_PROVIDER=ivs`.
-2. Set `SPIKE_CREATOR_TOKEN` to any string of 8+ characters. Anyone who can reach the server could otherwise use `dev-creator`.
-3. **Razorpay** (test mode): add key id/secret and set `PAYMENT_PROVIDER=razorpay`. For spike 3, enable Route and
+2. **Razorpay** (test mode): add key id/secret and set `PAYMENT_PROVIDER=razorpay`. For spike 3, enable Route and
    create two test linked accounts (seller, creator) in the dashboard, and add their `acc_...` ids; the dev database
    attaches them to the demo seller and creator on startup. Without them, checkout works but doesn't split.
 
@@ -90,7 +105,7 @@ Phone browsers only allow camera access over HTTPS. Either:
 - tunnel: `npx cloudflared tunnel --url http://localhost:3000` and open the `https://…trycloudflare.com` URL on the phone, or
 - `npm run dev:https -w @stealth/web` and open `https://<your-LAN-IP>:3000` (accept the self-signed cert warning; add the IP to `allowedDevOrigins` in `next.config.ts`).
 
-Then open `/spike/live` on the creator's phone, enter the token, **Start camera → Go live**, and open
+Then open `/spike/live` on the creator's phone, sign in as the creator, **Start camera → Go live**, and open
 `/spike/watch` on another device. Pin products from the phone and buy with Razorpay
 [test UPI/cards](https://razorpay.com/docs/payments/payments/test-card-details/).
 

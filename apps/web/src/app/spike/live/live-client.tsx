@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AmazonIVSBroadcastClient } from "amazon-ivs-web-broadcast";
 import { formatINR, type BroadcastConfig, type Product } from "@stealth/shared";
-
-const TOKEN_HEADER = "x-creator-token";
+import { LocalHost } from "./local-host";
 
 type Phase = "signed-out" | "preview" | "live";
 
@@ -21,16 +20,18 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
   const clientRef = useRef<AmazonIVSBroadcastClient | null>(null);
   const mediaRef = useRef<MediaStream | null>(null);
   const configRef = useRef<BroadcastConfig | null>(null);
+  const hostRef = useRef<LocalHost | null>(null);
 
-  const [token, setToken] = useState("");
   const [phase, setPhase] = useState<Phase>("signed-out");
   const [provider, setProvider] = useState<BroadcastConfig["provider"] | null>(null);
   const [connection, setConnection] = useState("idle");
   const [pinnedId, setPinnedId] = useState<string | null>(initialPinId);
+  const [viewerCount, setViewerCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(
     () => () => {
+      hostRef.current?.stop();
       clientRef.current?.stopBroadcast();
       clientRef.current?.delete();
       mediaRef.current?.getTracks().forEach((t) => t.stop());
@@ -41,17 +42,15 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
   async function startPreview() {
     setError(null);
     try {
-      const res = await fetch(`/api/spike/broadcast?stream=${encodeURIComponent(streamId)}`, { headers: { [TOKEN_HEADER]: token } });
+      const res = await fetch(`/api/spike/broadcast?stream=${encodeURIComponent(streamId)}`);
       if (!res.ok) throw new Error((await res.json()).error ?? "Could not load stream settings");
       const config: BroadcastConfig = await res.json();
       configRef.current = config;
       setProvider(config.provider);
 
-      if (config.provider === "fake") {
-        await startFakePreview();
-      } else {
-        await startIvsPreview(config.ingestEndpoint);
-      }
+      if (config.provider === "fake") await startFakePreview();
+      else if (config.provider === "local") await startLocalPreview();
+      else await startIvsPreview(config.ingestEndpoint);
       setPhase("preview");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -68,6 +67,23 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
     } catch {
       setConnection("no camera");
     }
+  }
+
+  /** Video goes straight to viewers' browsers, so the camera is required; the microphone is optional. */
+  async function startLocalPreview() {
+    let media: MediaStream;
+    try {
+      media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: { echoCancellation: true } });
+    } catch {
+      try {
+        media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      } catch {
+        throw new Error("Allow camera access to go live (check the camera icon in the address bar).");
+      }
+    }
+    mediaRef.current = media;
+    if (previewRef.current) previewRef.current.srcObject = media;
+    setConnection(media.getAudioTracks().length > 0 ? "camera + mic" : "camera only, no mic");
   }
 
   async function startIvsPreview(ingestEndpoint: string) {
@@ -97,6 +113,10 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
     try {
       const config = configRef.current;
       if (config?.provider === "ivs") await clientRef.current?.startBroadcast(config.streamKey);
+      if (config?.provider === "local" && mediaRef.current) {
+        hostRef.current = new LocalHost(streamId, mediaRef.current, setViewerCount);
+        hostRef.current.start();
+      }
       setPhase("live");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -104,6 +124,9 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
   }
 
   function endLive() {
+    hostRef.current?.stop();
+    hostRef.current = null;
+    setViewerCount(0);
     clientRef.current?.stopBroadcast();
     setPhase("preview");
     if (pinnedId) pin(null);
@@ -113,7 +136,7 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
     setError(null);
     const res = await fetch("/api/spike/pin", {
       method: "POST",
-      headers: { "Content-Type": "application/json", [TOKEN_HEADER]: token },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ streamId, productId }),
     });
     if (res.ok) setPinnedId(productId);
@@ -123,26 +146,31 @@ export function LiveClient({ streamId, title, products, initialPinId }: Props) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-3 bg-zinc-950 p-3 text-white">
       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-2xl bg-zinc-800">
-        {provider === "fake" ? (
-          <video ref={previewRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
-        ) : (
-          <canvas ref={canvasRef} className="h-full w-full object-cover" />
-        )}
+        {/* Both always exist so the camera can attach before React re-renders; only one is shown. */}
+        <video
+          ref={previewRef}
+          autoPlay
+          playsInline
+          muted
+          className={`h-full w-full -scale-x-100 object-cover ${provider === "ivs" ? "hidden" : ""}`}
+        />
+        <canvas ref={canvasRef} className={`h-full w-full object-cover ${provider === "ivs" ? "" : "hidden"}`} />
         <div className="absolute left-3 top-3 flex gap-2 text-xs font-semibold">
-          {phase === "live" && <span className="rounded bg-red-600 px-2 py-1">LIVE{provider === "fake" && " · simulated"}</span>}
+          {phase === "live" && (
+            <span className="rounded bg-red-600 px-2 py-1">
+              LIVE{provider === "fake" && " · simulated"}
+              {provider === "local" && " · local"}
+            </span>
+          )}
+          {phase === "live" && provider === "local" && (
+            <span className="rounded bg-white/20 px-2 py-1">{viewerCount} watching</span>
+          )}
           {phase !== "signed-out" && <span className="rounded bg-white/20 px-2 py-1">{connection}</span>}
         </div>
         {phase === "signed-out" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm font-semibold">{title}</p>
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Creator token"
-              className="w-full rounded-lg bg-white/10 px-3 py-2 text-sm"
-            />
-            <button onClick={startPreview} disabled={!token} className="w-full rounded-lg bg-white py-2 text-sm font-bold text-black disabled:opacity-50">
+            <button onClick={startPreview} className="w-full rounded-lg bg-white py-2 text-sm font-bold text-black">
               Start camera
             </button>
           </div>
